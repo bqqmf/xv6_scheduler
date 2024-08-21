@@ -344,35 +344,23 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    max_rw = 0;
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-        if (p->state != RUNNABLE) continue;
-        // cprintf("\npid %d's rw_cnt = %d\n", p->pid, p->rw_cnt);
-        if (p->rw_cnt > max_rw) 
-            max_rw = p->rw_cnt;
-    }
     
     for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
         if (q_size[q_idx] > 0) {
-            //cprintf("q_size[%d] : %d\n", q_idx, q_size[q_idx]);
+            max_rw = 0;
+            for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+                if (p->state != RUNNABLE) continue;
+                if (p->q_lv != q_idx) continue;
+                // cprintf("\npid %d's rw_cnt = %d\n", p->pid, p->rw_cnt);
+                if (p->rw_cnt > max_rw) 
+                    max_rw = p->rw_cnt;
+            }
 
             for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
               if(p->pid == 0) continue;
               if(p->state != RUNNABLE) continue;
               if(p->q_lv != q_idx) continue;
               if(p->rw_cnt != max_rw) continue;
-
-              /*
-              if (p->rw_cnt > max_rw) {
-                  max_rw = p->rw_cnt;
-                  tmp = p;
-              }
-              */
-              
-              // Delete later
-              //np = tmp = (struct proc*)max_rw;  // 컴파일 에러 제거용
-              //np = p;
-              // Delete later
 
 
               // Switch to chosen process.  It is the process's job
@@ -390,6 +378,7 @@ scheduler(void)
               // It should have changed its p->state before coming back.
               c->proc = 0;
             }
+            break;
         }
     }
     release(&ptable.lock);
