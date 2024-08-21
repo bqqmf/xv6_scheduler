@@ -396,6 +396,7 @@ scheduler(void)
                     p->q_lv ++;
                     q_size[p->q_lv] ++;
                     p->cpu_wait = 0;
+                    p->cpu_burst = 0;
                 }
             }
         }
