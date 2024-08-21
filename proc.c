@@ -89,6 +89,10 @@ found:
   p->state = EMBRYO;
   p->pid = nextpid++;
 
+  p->q_lv = 0;
+  p->cpu_burst = 0;
+  p->cpu_wait = 0;
+  p->rw_cnt = 0;
   release(&ptable.lock);
 
   // Allocate kernel stack.
