@@ -369,7 +369,6 @@ scheduler(void)
               switchuvm(p);
               p->state = RUNNING;
 
-              p->cpu_burst = 0;
               p->cpu_wait = 0;
               p->rw_cnt = 0;
 
