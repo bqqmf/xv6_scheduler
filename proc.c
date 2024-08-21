@@ -18,6 +18,7 @@ int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
 int q_size[NQUEUE];
+int time_slice[NQUEUE] = { 10, 20, 40, 80 };
 
 static void wakeup1(void *chan);
 
