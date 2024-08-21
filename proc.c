@@ -270,8 +270,7 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
-  // ERASE ?
-  //q_size[curproc->q_lv] --;
+  q_size[curproc->q_lv] --;
   sched();
   panic("zombie exit");
 }
@@ -369,6 +368,14 @@ scheduler(void)
               c->proc = p;
               switchuvm(p);
               p->state = RUNNING;
+
+              p->cpu_burst = 0;
+              p->cpu_wait = 0;
+              p->rw_cnt = 0;
+
+              cprintf("\npid : %d, state : %d\n", p->pid, p->state);
+              cprintf("q_size[%d] = %d\t", q_idx, q_size[q_idx]);
+              cprintf("===> q_size[%d] = %d\n", q_idx, q_size[q_idx]);
 
               swtch(&(c->scheduler), p->context);
               switchkvm();
