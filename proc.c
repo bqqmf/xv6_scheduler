@@ -17,7 +17,7 @@ static struct proc *initproc;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
-int q_size[NQUEUE];
+int q_size[NQUEUE] = { 0, 0, 0, 0 };
 int time_slice[NQUEUE] = { 10, 20, 40, 80 };
 
 static void wakeup1(void *chan);
@@ -95,6 +95,7 @@ found:
   p->cpu_burst = 0;
   p->cpu_wait = 0;
   p->rw_cnt = 0;
+  q_size[0]++;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -269,7 +270,8 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
-  q_size[curproc->q_lv] --;
+  // ERASE ?
+  //q_size[curproc->q_lv] --;
   sched();
   panic("zombie exit");
 }
@@ -332,6 +334,9 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
+
+  int max_wait;
+  int q_idx;
   
   for(;;){
     // Enable interrupts on this processor.
@@ -339,23 +344,51 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+    max_wait = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->cpu_wait > max_wait) 
+            max_wait = p->cpu_wait;
+    }
+    
+    for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
+        if (q_size[q_idx] > 0) {
+            //cprintf("q_size[%d] : %d\n", q_idx, q_size[q_idx]);
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+            for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+              if(p->pid == 0) continue;
+              if(p->state != RUNNABLE) continue;
+              if(p->q_lv != q_idx) continue;
+              if(p->cpu_wait != max_wait) continue;
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+              /*
+              if (p->cpu_wait > max_wait) {
+                  max_wait = p->cpu_wait;
+                  tmp = p;
+              }
+              */
+              
+              // Delete later
+              //np = tmp = (struct proc*)max_wait;  // 컴파일 에러 제거용
+              //np = p;
+              // Delete later
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+
+              // Switch to chosen process.  It is the process's job
+              // to release ptable.lock and then reacquire it
+              // before jumping back to us.
+              c->proc = p;
+              switchuvm(p);
+              p->state = RUNNING;
+
+              swtch(&(c->scheduler), p->context);
+              switchkvm();
+
+              cprintf("%d's state : %d\n", p->pid, p->state);
+              // Process is done running for now.
+              // It should have changed its p->state before coming back.
+              c->proc = 0;
+            }
+        }
     }
     release(&ptable.lock);
 
