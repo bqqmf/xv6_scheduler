@@ -19,6 +19,7 @@ extern void forkret(void);
 extern void trapret(void);
 int q_size[NQUEUE] = { 0, 0, 0, 0 };
 int time_slice[NQUEUE] = { 10, 20, 40, 80 };
+int WAIT_THRESHOLD = 250;
 
 static void wakeup1(void *chan);
 
@@ -369,12 +370,13 @@ scheduler(void)
               switchuvm(p);
               p->state = RUNNING;
 
+
+              cprintf("\npid : %d, state : %d, cpu_burst : %d, rw_cnt = %d\n", p->pid, p->state, p->cpu_burst, p->rw_cnt);
+
               p->cpu_wait = 0;
               p->rw_cnt = 0;
 
-              cprintf("\npid : %d, state : %d\n", p->pid, p->state);
-              cprintf("q_size[%d] = %d\t", q_idx, q_size[q_idx]);
-              cprintf("===> q_size[%d] = %d\n", q_idx, q_size[q_idx]);
+              cprintf("q_size[%d] = %d\n\n", q_idx, q_size[q_idx]);
 
               swtch(&(c->scheduler), p->context);
               switchkvm();
@@ -383,8 +385,19 @@ scheduler(void)
               // Process is done running for now.
               // It should have changed its p->state before coming back.
               c->proc = 0;
+
+              break;
             }
-            break;
+            
+            for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+                if (p->state != RUNNABLE) continue;
+                if (p->q_lv > 0 && p->cpu_wait >= WAIT_THRESHOLD) {
+                    q_size[p->q_lv] --;
+                    p->q_lv ++;
+                    q_size[p->q_lv] ++;
+                    p->cpu_wait = 0;
+                }
+            }
         }
     }
     release(&ptable.lock);
