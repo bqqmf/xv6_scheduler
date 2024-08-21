@@ -16,6 +16,7 @@ extern struct {
     struct proc proc[NPROC];
 } ptable;
 extern int time_slice[NQUEUE];
+extern int q_size[NQUEUE];
 struct spinlock tickslock;
 uint ticks;
 
@@ -62,8 +63,13 @@ trap(struct trapframe *tf)
 
     if (myproc()) {
         myproc()->cpu_burst ++;
-        if (myproc()->cpu_burst >= time_slice[myproc()->q_lv])
+        if (myproc()->cpu_burst >= time_slice[myproc()->q_lv]) {
+            myproc()->cpu_burst = 0;
+            q_size[myproc()->q_lv] --;
+            myproc()->q_lv ++;
+            q_size[myproc()->q_lv] ++; 
             yield();
+        }
     }
 
     acquire(&ptable.lock);
