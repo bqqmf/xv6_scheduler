@@ -11,6 +11,10 @@
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
+extern struct {
+    struct spinlock lock;
+    struct proc proc[NPROC];
+} ptable;
 struct spinlock tickslock;
 uint ticks;
 
@@ -56,6 +60,14 @@ trap(struct trapframe *tf)
     }
 
     if (myproc()) myproc()->cpu_burst ++;
+
+    acquire(&ptable.lock);
+    struct proc *p;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->state != RUNNABLE) continue;
+        p->cpu_wait ++;
+    }
+    release(&ptable.lock);
 
     lapiceoi();
     break;
