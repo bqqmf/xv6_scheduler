@@ -15,6 +15,7 @@ extern struct {
     struct spinlock lock;
     struct proc proc[NPROC];
 } ptable;
+extern int time_slice[NQUEUE];
 struct spinlock tickslock;
 uint ticks;
 
@@ -59,7 +60,11 @@ trap(struct trapframe *tf)
       release(&tickslock);
     }
 
-    if (myproc()) myproc()->cpu_burst ++;
+    if (myproc()) {
+        myproc()->cpu_burst ++;
+        if (myproc()->cpu_burst >= time_slice[myproc()->q_lv])
+            yield();
+    }
 
     acquire(&ptable.lock);
     struct proc *p;
