@@ -17,6 +17,7 @@ static struct proc *initproc;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
+int q_size[NQUEUE];
 
 static void wakeup1(void *chan);
 
@@ -267,6 +268,7 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
+  q_size[curproc->q_lv] --;
   sched();
   panic("zombie exit");
 }
