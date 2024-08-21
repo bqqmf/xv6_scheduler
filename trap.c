@@ -65,9 +65,11 @@ trap(struct trapframe *tf)
         myproc()->cpu_burst ++;
         if (myproc()->cpu_burst >= time_slice[myproc()->q_lv]) {
             myproc()->cpu_burst = 0;
-            q_size[myproc()->q_lv] --;
-            myproc()->q_lv ++;
-            q_size[myproc()->q_lv] ++; 
+            if (myproc()->q_lv < 3) {
+                q_size[myproc()->q_lv] --;
+                myproc()->q_lv ++;
+                q_size[myproc()->q_lv] ++; 
+            }
             yield();
         }
     }
