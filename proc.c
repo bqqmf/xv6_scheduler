@@ -335,7 +335,7 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
-  int max_wait;
+  int max_rw;
   int q_idx;
   
   for(;;){
@@ -344,10 +344,12 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    max_wait = 0;
+    max_rw = 0;
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-        if (p->cpu_wait > max_wait) 
-            max_wait = p->cpu_wait;
+        if (p->state != RUNNABLE) continue;
+        // cprintf("\npid %d's rw_cnt = %d\n", p->pid, p->rw_cnt);
+        if (p->rw_cnt > max_rw) 
+            max_rw = p->rw_cnt;
     }
     
     for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
@@ -358,17 +360,17 @@ scheduler(void)
               if(p->pid == 0) continue;
               if(p->state != RUNNABLE) continue;
               if(p->q_lv != q_idx) continue;
-              if(p->cpu_wait != max_wait) continue;
+              if(p->rw_cnt != max_rw) continue;
 
               /*
-              if (p->cpu_wait > max_wait) {
-                  max_wait = p->cpu_wait;
+              if (p->rw_cnt > max_rw) {
+                  max_rw = p->rw_cnt;
                   tmp = p;
               }
               */
               
               // Delete later
-              //np = tmp = (struct proc*)max_wait;  // 컴파일 에러 제거용
+              //np = tmp = (struct proc*)max_rw;  // 컴파일 에러 제거용
               //np = p;
               // Delete later
 
@@ -383,7 +385,7 @@ scheduler(void)
               swtch(&(c->scheduler), p->context);
               switchkvm();
 
-              cprintf("%d's state : %d\n", p->pid, p->state);
+              //cprintf("%d's state : %d\n", p->pid, p->state);
               // Process is done running for now.
               // It should have changed its p->state before coming back.
               c->proc = 0;
