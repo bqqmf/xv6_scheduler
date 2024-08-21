@@ -371,8 +371,8 @@ scheduler(void)
               p->state = RUNNING;
 
 
-              cprintf("\npid : %d, state : %d, cpu_burst : %d, rw_cnt = %d\n", p->pid, p->state, p->cpu_burst, p->rw_cnt);
-
+              cprintf("\npid : %d, state : %d, cpu_burst : %d, rw_cnt = %d, cpu_wait = %d, q_size[%d] = %d\n", 
+                        p->pid, p->state, p->cpu_burst, p->rw_cnt, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
               p->cpu_wait = 0;
               p->rw_cnt = 0;
 
