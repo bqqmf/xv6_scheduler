@@ -97,6 +97,8 @@ found:
   p->cpu_wait = 0;
   p->io_wait_time= 0;
   q_size[0]++;
+  if (p->pid > 2)
+      cprintf("PID : %d, name : %s created!!!!!\n", p->pid, p->name);
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -352,7 +354,7 @@ scheduler(void)
                 if (p->state != RUNNABLE) continue;
                 if (p->q_lv != q_idx) continue;
                 // cprintf("\npid %d's io_wait_time= %d\n", p->pid, p->io_wait_time);
-                if (p->io_wait_time> max_io) 
+                if (p->io_wait_time> max_io)  
                     max_io = p->io_wait_time;
             }
 
@@ -370,19 +372,29 @@ scheduler(void)
               switchuvm(p);
               p->state = RUNNING;
 
-
+#ifdef DEBUG
+              if (p->pid > 2) {
+                char *s[6] = { 
+                    [UNUSED] = "UNUSED",
+                    [EMBRYO] = "EMBRYO",
+                    [SLEEPING] = "SLEEPING",
+                    [RUNNABLE] = "RUNNABLE",
+                    [RUNNING] = "RUNNING",
+                    [ZOMBIE] = "ZOMBIE"
+                };
+                                
+                cprintf("\npid : %d, state : %s, cpu_burst : %d, io_wait_time= %d, cpu_wait = %d, q_size[%d] = %d  ", 
+                        p->pid, s[p->state], p->cpu_burst, p->io_wait_time, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
+                cprintf("qsize : %d  %d  %d  %d\n", q_size[0], q_size[1], q_size[2], q_size[3]);
+              }
+#endif
 
               p->cpu_wait = 0;
               p->io_wait_time= 0;
 
-
               swtch(&(c->scheduler), p->context);
               switchkvm();
 
-#ifdef DEBUG
-              cprintf("\npid : %d, state : %d, cpu_burst : %d, io_wait_time= %d, cpu_wait = %d, q_size[%d] = %d\n", 
-                        p->pid, p->state, p->cpu_burst, p->io_wait_time, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
-#endif
               //cprintf("%d's state : %d\n", p->pid, p->state);
               // Process is done running for now.
               // It should have changed its p->state before coming back.
@@ -393,16 +405,17 @@ scheduler(void)
             
             for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
                 if (p->state != RUNNABLE) continue;
-                if (p->q_lv > 0 && p->cpu_wait >= WAIT_THRESHOLD) {
+                if (p->cpu_wait < WAIT_THRESHOLD)
+                    continue;
+                if (p->q_lv > 0) {
                     q_size[p->q_lv] --;
                     p->q_lv --; 
                     q_size[p->q_lv] ++;
-                    p->cpu_wait = 0;
-                    p->cpu_burst = 0;
-                    p->io_wait_time = 0;
                 }
+                p->cpu_wait = 0;
+                p->cpu_burst = 0;
             }
-        }
+        } 
     }
     release(&ptable.lock);
 

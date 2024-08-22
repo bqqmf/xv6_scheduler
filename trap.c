@@ -75,6 +75,7 @@ trap(struct trapframe *tf)
     }
 
     acquire(&ptable.lock);
+
     struct proc *p;
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
         if (p->state == RUNNABLE) p->cpu_wait ++;
