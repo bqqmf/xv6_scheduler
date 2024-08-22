@@ -371,16 +371,18 @@ scheduler(void)
               p->state = RUNNING;
 
 
-              cprintf("\npid : %d, state : %d, cpu_burst : %d, rw_cnt = %d, cpu_wait = %d, q_size[%d] = %d\n", 
-                        p->pid, p->state, p->cpu_burst, p->rw_cnt, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
+
               p->cpu_wait = 0;
               p->rw_cnt = 0;
 
-              cprintf("q_size[%d] = %d\n\n", q_idx, q_size[q_idx]);
 
               swtch(&(c->scheduler), p->context);
               switchkvm();
 
+#ifdef DEBUG
+              cprintf("\npid : %d, state : %d, cpu_burst : %d, rw_cnt = %d, cpu_wait = %d, q_size[%d] = %d\n", 
+                        p->pid, p->state, p->cpu_burst, p->rw_cnt, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
+#endif
               //cprintf("%d's state : %d\n", p->pid, p->state);
               // Process is done running for now.
               // It should have changed its p->state before coming back.
