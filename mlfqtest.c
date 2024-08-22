@@ -3,22 +3,34 @@
 #include "user.h"
 #include "fcntl.h"
 
-#define NPROC 6
+#define NPROC 12 
 #define INPUT_FILENAME "README"
 #define OUTPUT_FILENAME1 "io_test1.txt"
 #define OUTPUT_FILENAME2 "io_test2.txt"
 #define BUFFER_SIZE 1024
 
-void cpu_bound_task(int ticks) {
+void cpu_bound_task(int n) {
+    int i;
+    volatile int sum = 0;
+    for (i=0; i<30000000; i++)
+        sum += i;
+
+}
+void cpu_bound_task2(int ticks) {
     int i;
     volatile int sum = 0;
     int start_time, current_time, elapsed_time;
     start_time = uptime();
-    for (i = 0; ; i++) {
-        sum += i;
 
+    for(;;) {
+
+        for (i = 0; 100000; i++) {
+            sum += i;
+
+        }
         current_time = uptime();
         elapsed_time = current_time - start_time;
+        printf(1, "start : %d cur : %d, ela : %d\n", start_time, current_time, elapsed_time);
 
         if (elapsed_time >= ticks) 
             break;
@@ -67,21 +79,21 @@ int main(void) {
     for (i = 0; i < NPROC; i++) {
         pid = fork();
         if (pid == 0) { // 자식 프로세스
-            //printf(1, "\nProcess %d created.\n", i);
+                        //printf(1, "\nProcess %d created.\n", i);
             if (i % 3 == 0) {
                 printf(1, "CPU-bound Process %d created\n", i);
                 cpu_bound_task(100 * (i + 1));  // CPU-bound 작업
                 printf(1, "CPU-bound Process %d finished\n", i);
                 exit();
-            } else if (i % 3 == 1) {  
+            } else if (i % 3 == 2) {  
                 printf(1, "IO-bound Process %d created\n", i);
-                io_bound_task(i, INPUT_FILENAME, OUTPUT_FILENAME2);
+                io_bound_task(1, INPUT_FILENAME, OUTPUT_FILENAME2);
                 printf(1, "IO-bound Process %d finished\n", i);
                 exit();
             } else {
                 printf(1, "CPU + IO Process %d created\n", i);
                 cpu_bound_task(100);  
-                io_bound_task(i, INPUT_FILENAME, OUTPUT_FILENAME1);
+                io_bound_task(1, INPUT_FILENAME, OUTPUT_FILENAME1);
                 printf(1, "CPU + IO Process %d finished\n", i);
                 exit();
             }
