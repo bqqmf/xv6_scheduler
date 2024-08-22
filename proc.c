@@ -95,7 +95,7 @@ found:
   p->q_lv = 0;
   p->cpu_burst = 0;
   p->cpu_wait = 0;
-  p->rw_cnt = 0;
+  p->io_wait_time= 0;
   q_size[0]++;
   release(&ptable.lock);
 
@@ -335,7 +335,7 @@ scheduler(void)
   struct cpu *c = mycpu();
   c->proc = 0;
 
-  int max_rw;
+  int max_io;
   int q_idx;
   
   for(;;){
@@ -347,20 +347,20 @@ scheduler(void)
     
     for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
         if (q_size[q_idx] > 0) {
-            max_rw = 0;
+            max_io = 0;
             for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
                 if (p->state != RUNNABLE) continue;
                 if (p->q_lv != q_idx) continue;
-                // cprintf("\npid %d's rw_cnt = %d\n", p->pid, p->rw_cnt);
-                if (p->rw_cnt > max_rw) 
-                    max_rw = p->rw_cnt;
+                // cprintf("\npid %d's io_wait_time= %d\n", p->pid, p->io_wait_time);
+                if (p->io_wait_time> max_io) 
+                    max_io = p->io_wait_time;
             }
 
             for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
               if(p->pid == 0) continue;
               if(p->state != RUNNABLE) continue;
               if(p->q_lv != q_idx) continue;
-              if(p->rw_cnt != max_rw) continue;
+              if(p->io_wait_time != max_io) continue;
 
 
               // Switch to chosen process.  It is the process's job
@@ -373,15 +373,15 @@ scheduler(void)
 
 
               p->cpu_wait = 0;
-              p->rw_cnt = 0;
+              p->io_wait_time= 0;
 
 
               swtch(&(c->scheduler), p->context);
               switchkvm();
 
 #ifdef DEBUG
-              cprintf("\npid : %d, state : %d, cpu_burst : %d, rw_cnt = %d, cpu_wait = %d, q_size[%d] = %d\n", 
-                        p->pid, p->state, p->cpu_burst, p->rw_cnt, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
+              cprintf("\npid : %d, state : %d, cpu_burst : %d, io_wait_time= %d, cpu_wait = %d, q_size[%d] = %d\n", 
+                        p->pid, p->state, p->cpu_burst, p->io_wait_time, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
 #endif
               //cprintf("%d's state : %d\n", p->pid, p->state);
               // Process is done running for now.
@@ -395,10 +395,11 @@ scheduler(void)
                 if (p->state != RUNNABLE) continue;
                 if (p->q_lv > 0 && p->cpu_wait >= WAIT_THRESHOLD) {
                     q_size[p->q_lv] --;
-                    p->q_lv ++;
+                    p->q_lv --; 
                     q_size[p->q_lv] ++;
                     p->cpu_wait = 0;
                     p->cpu_burst = 0;
+                    p->io_wait_time = 0;
                 }
             }
         }
@@ -513,8 +514,10 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+      p->cpu_burst = 0;
+    }
 }
 
 // Wake up all processes sleeping on chan.

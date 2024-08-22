@@ -54,7 +54,7 @@ struct proc {
   int q_lv;
   int cpu_burst;
   int cpu_wait;
-  int rw_cnt;
+  int io_wait_time;
 };
 
 // Process memory is laid out contiguously, low addresses first:
