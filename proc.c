@@ -328,7 +328,7 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-    void
+void
 scheduler(void)
 {
     struct proc *p, *cur;
@@ -339,10 +339,7 @@ scheduler(void)
     int q_idx;
 
     for(;;){
-        // Enable interrupts on this processor.
         sti();
-
-        // Loop over process table looking for process to run.
         acquire(&ptable.lock);
 
         for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
@@ -356,7 +353,7 @@ scheduler(void)
                         max_io = cur->io_wait_time;
                     }
                 }
-                if(p != 0) break;
+                //if(p) break;
             }
         }
 
@@ -365,9 +362,6 @@ scheduler(void)
             continue;
         }
 
-        // Switch to chosen process.  It is the process's job
-        // to release ptable.lock and then reacquire it
-        // before jumping back to us.
 #ifdef DEBUG
         if (c->proc && p)
             cprintf("Context switch from PID %d to PID %d\n", c->proc->pid, p->pid);
