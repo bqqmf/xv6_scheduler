@@ -17,6 +17,7 @@ extern struct {
 } ptable;
 extern int time_slice[NQUEUE];
 extern int q_size[NQUEUE];
+int WAIT_THRESHOLD = 250;
 struct spinlock tickslock;
 uint ticks;
 

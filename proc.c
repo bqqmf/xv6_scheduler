@@ -19,7 +19,6 @@ extern void forkret(void);
 extern void trapret(void);
 int q_size[NQUEUE] = { 0, 0, 0, 0 };
 int time_slice[NQUEUE] = { 10, 20, 40, 80 };
-int WAIT_THRESHOLD = 250;
 
 static void wakeup1(void *chan);
 
