@@ -65,6 +65,8 @@ trap(struct trapframe *tf)
         myproc()->cpu_burst ++;
         if (myproc()->cpu_burst >= time_slice[myproc()->q_lv]) {
             myproc()->cpu_burst = 0;
+            myproc()->cpu_wait = 0;
+            myproc()->io_wait_time = 0;
             if (myproc()->q_lv < 3) {
                 q_size[myproc()->q_lv] --;
                 myproc()->q_lv ++;
