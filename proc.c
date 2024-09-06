@@ -407,6 +407,7 @@ scheduler(void)
             }
             p->cpu_wait = 0;
             p->cpu_burst = 0;
+            p->io_wait_time= 0;
         }
         p=0;
         release(&ptable.lock);
