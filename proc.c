@@ -19,8 +19,23 @@ extern void forkret(void);
 extern void trapret(void);
 int q_size[NQUEUE] = { 0, 0, 0, 0 };
 int time_slice[NQUEUE] = { 10, 20, 40, 80 };
+int WAIT_THRESHOLD = 250;
 
 static void wakeup1(void *chan);
+int set_proc_info(int lv, int burst, int wait, int io_wait, int end_time)
+{
+    q_size[myproc()->q_lv] --;
+    myproc()->q_lv = lv;
+    q_size[myproc()->q_lv] ++; 
+    myproc()->cpu_burst = burst;
+    myproc()->cpu_wait = wait;
+    myproc()->io_wait_time = io_wait;
+    myproc()->end_time = end_time;
+
+    cprintf("set proc %d info complete\n", myproc()->pid);
+
+    return 0;
+}
 
     void
 pinit(void)
@@ -90,12 +105,19 @@ allocproc(void)
 found:
     p->state = EMBRYO;
     p->pid = nextpid++;
-
-    p->q_lv = 0;
+    if (p->pid <= 2) {
+        p->q_lv = 3;
+        p->cpu_wait = 500;
+        q_size[3]++;
+    } else {
+    cprintf("PID : %d created\n", p->pid);
+        p->q_lv = 0;
+        p->cpu_wait = 0;
+        q_size[0]++;
+    }
     p->cpu_burst = 0;
-    p->cpu_wait = 0;
-    p->io_wait_time= 0;
-    q_size[0]++;
+    p->io_wait_time = 0;
+    p->end_time = -1;
     release(&ptable.lock);
 
     // Allocate kernel stack.
@@ -195,6 +217,7 @@ fork(void)
     if((np = allocproc()) == 0){
         return -1;
     }
+
 
     // Copy process state from proc.
     if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
@@ -333,9 +356,11 @@ scheduler(void)
     struct proc *p, *cur;
     struct cpu *c = mycpu();
     c->proc = 0;
+    p=0;
+
 
     int max_io;
-    int q_idx;
+    int q_idx = 0;
 
     for(;;){
         sti();
@@ -344,15 +369,20 @@ scheduler(void)
         for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
             if (q_size[q_idx] > 0) {
                 max_io = -1;
+                //cprintf("2) q_idx : %d\n", i);
                 for(cur = ptable.proc; cur < &ptable.proc[NPROC]; cur++) {
                     if (cur->state != RUNNABLE) continue;
                     if (cur->q_lv != q_idx) continue;
+#ifdef DEBUG2
+                    cprintf("cur : %d, io_wait : %d, q_size[%d  %d  %d  %d]\n", cur->pid, cur->io_wait_time, q_size[0], q_size[1], q_size[2], q_size[3]);
+#endif
+                    //cprintf("PID : %d, q_lv : %d, io_wait_time : %d\n", cur->pid, cur->q_lv, cur->io_wait_time);
                     if (cur->io_wait_time > max_io){
+                        //cprintf("pid : %d has max_io %d -> %d\n", cur->pid, max_io, cur->io_wait_time);
                         p = cur;
                         max_io = cur->io_wait_time;
                     }
                 }
-                //if(p) break;
             }
         }
 
@@ -361,15 +391,29 @@ scheduler(void)
             continue;
         }
 
-#ifdef DEBUG
-        if (c->proc && p)
-            cprintf("Context switch from PID %d to PID %d\n", c->proc->pid, p->pid);
-#endif
+        for (cur = ptable.proc; cur < &ptable.proc[NPROC]; cur++) {
+            if (cur->state == RUNNABLE) {
+                cur->cpu_wait ++;
+                if (cur->cpu_wait == WAIT_THRESHOLD) {
+                    cprintf("PID : %d AGING\n", cur->pid);
+                    if (cur->q_lv > 0) {
+                        q_size[cur->q_lv] --;
+                        cur->q_lv --;
+                        q_size[cur->q_lv] ++;
+                    }
+                    cur->cpu_burst = 0;
+                    cur->cpu_wait = 0;
+                    cur->io_wait_time= 0;
+                }
+            } else if (cur->state == SLEEPING) cur->io_wait_time ++;
+        }
+        cur=0;
+
         c->proc = p;
         switchuvm(p);
         p->state = RUNNING;
 #ifdef DEBUG
-        if (p->pid > 2) {
+        if (p->pid > 3) {
             char *s[6] = { 
                 [UNUSED] = "UNUSED",
                 [EMBRYO] = "EMBRYO",
@@ -379,11 +423,13 @@ scheduler(void)
                 [ZOMBIE] = "ZOMBIE"
             };
 
-            cprintf("\npid : %d, state : %s, cpu_burst : %d, io_wait_time= %d, cpu_wait = %d, q_size[%d] = %d  ", 
-                    p->pid, s[p->state], p->cpu_burst, p->io_wait_time, p->cpu_wait, p->q_lv, q_size[p->q_lv]);
+            cprintf("\npid : %d, state : %s, cpu_burst : %d, io_wait_time= %d, cpu_wait = %d, q_lv = %d  ", 
+                    p->pid, s[p->state], p->cpu_burst, p->io_wait_time, p->cpu_wait, p->q_lv);
             cprintf("qsize : %d  %d  %d  %d\n", q_size[0], q_size[1], q_size[2], q_size[3]);
         }
 #endif
+        p->cpu_wait = 0;
+        p->io_wait_time= 0;
 
         swtch(&(c->scheduler), p->context);
         switchkvm();
@@ -391,11 +437,9 @@ scheduler(void)
         //cprintf("%d's state : %d\n", p->pid, p->state);
         // Process is done running for now.
         // It should have changed its p->state before coming back.
-        p->cpu_wait = 0;
-        p->io_wait_time= 0;
         c->proc = 0;
-
         p=0;
+
         release(&ptable.lock);
 
     }
@@ -433,6 +477,17 @@ yield(void)
 {
     acquire(&ptable.lock);  //DOC: yieldlock
     myproc()->state = RUNNABLE;
+
+    myproc()->cpu_burst = 0;
+    myproc()->cpu_wait = 0;
+    myproc()->io_wait_time = 0;
+    if (myproc()->q_lv < 3) {
+        q_size[myproc()->q_lv] --;
+        myproc()->q_lv ++;
+        q_size[myproc()->q_lv] ++; 
+    }
+
+
     sched();
     release(&ptable.lock);
 }

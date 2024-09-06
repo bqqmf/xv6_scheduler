@@ -89,3 +89,17 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_set_proc_info(void)
+{
+    int q_lv, cpu_burst, cpu_wait, io_wait_time, end_time;
+
+    if (argint(0, &q_lv) < 0) return -1;
+    if (argint(1, &cpu_burst) < 0) return -1;
+    if (argint(2, &cpu_wait) < 0) return -1;
+    if (argint(3, &io_wait_time) < 0) return -1;
+    if (argint(4, &end_time) < 0) return -1;
+
+    return set_proc_info(q_lv, cpu_burst, cpu_wait, io_wait_time, end_time);
+}

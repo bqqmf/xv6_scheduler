@@ -3,7 +3,7 @@
 #include "user.h"
 #include "fcntl.h"
 
-#define N 12 
+#define N 6 
 #define INPUT_FILENAME "sh"
 #define OUTPUT_FILENAME1 "io_test1.txt"
 #define OUTPUT_FILENAME2 "io_test2.txt"
@@ -12,7 +12,8 @@
 void cpu_bound_task() {
     int i;
     volatile int sum = 0;
-    for (i=0; i<200000000; i++)
+    //for (i=0; i<200000000; i++)
+    for (i=0; i<200000; i++)
         sum += i;
 
 }
@@ -74,7 +75,6 @@ void io_bound_task(int T, const char *input, const char *output) {
 
 int main(void) {
     int pid;
-    /*
     int i;
 
     for (i = 0; i < N; i++) {
@@ -82,20 +82,20 @@ int main(void) {
         if (pid == 0) { // 자식 프로세스
                         //printf(1, "\Ness %d created.\n", i);
             if (i % 3 == 0) {
-                printf(1, "CPU-bound Process %d created\n", i);
-                cpu_bound_task());  // CPU-bound 작업
-                printf(1, "CPU-bound Process %d finished\n", i);
+                printf(1, "CPU-bound Process %d created\n", i/3+1);
+                cpu_bound_task();  // CPU-bound 작업
+                printf(1, "CPU-bound Process %d finished\n", i/3+1);
                 exit();
             } else if (i % 3 == 1) {  
-                printf(1, "CPU + IO Process %d created\n", i);
+                printf(1, "CPU + IO Process %d created\n", i/3+1);
                 cpu_bound_task();  
                 io_bound_task(1, INPUT_FILENAME, OUTPUT_FILENAME1);
-                printf(1, "CPU + IO Process %d finished\n", i);
+                printf(1, "CPU + IO Process %d finished\n", i/3+1);
                 exit();
             } else {
-                printf(1, "IO-bound Process %d created\n", i);
+                printf(1, "IO-bound Process %d created\n", i/3+1);
                 io_bound_task(1, INPUT_FILENAME, OUTPUT_FILENAME2);
-                printf(1, "IO-bound Process %d finished\n", i);
+                printf(1, "IO-bound Process %d finished\n", i/3+1);
                 exit();
             }
         }
@@ -104,14 +104,6 @@ int main(void) {
     for (i = 0; i < N; i++) {
         wait();
     }
-    */
-    pid = fork();
-    if (pid == 0) {
-        cpu_bound_task(); // 4.5
-        //io_bound_task(5, INPUT_FILENAME, OUTPUT_FILENAME2); //9~10
-        exit();
-    }
-    wait();
 
     printf(1, "All processes finished\n");
     exit();

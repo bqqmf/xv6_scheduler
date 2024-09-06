@@ -17,7 +17,6 @@ extern struct {
 } ptable;
 extern int time_slice[NQUEUE];
 extern int q_size[NQUEUE];
-int WAIT_THRESHOLD = 250;
 struct spinlock tickslock;
 uint ticks;
 
@@ -40,6 +39,7 @@ idtinit(void)
 }
 
 //PAGEBREAK: 41
+int total_cpu_used = 0;
 void
 trap(struct trapframe *tf)
 {
@@ -60,46 +60,25 @@ trap(struct trapframe *tf)
       ticks++;
       wakeup(&ticks);
       release(&tickslock);
+
+
+    if (myproc() && myproc()->pid > 2) {
+       myproc()->cpu_burst ++;
+       myproc()->cpu_used ++;
+       total_cpu_used ++;
+       if (myproc()->cpu_used == myproc()->end_time) {
+           cprintf("PID : %d uses %d ticks terminated\n", myproc()->pid, myproc()->cpu_used);  
+           kill(myproc()->pid);
+       }
+          // if p->cpu_burst == end_time
+          // print pid %d terminated
+          // kill(myproc()->pid);
     }
 
-    if (myproc()) {
-        myproc()->cpu_burst ++;
-        if (myproc()->cpu_burst >= time_slice[myproc()->q_lv]) {
-            myproc()->cpu_burst = 0;
-            myproc()->cpu_wait = 0;
-            myproc()->io_wait_time = 0;
-#ifdef DEBUG
-            cprintf("PID: %d\n", myproc()->pid);
-#endif
-            if (myproc()->q_lv < 3) {
-                q_size[myproc()->q_lv] --;
-                myproc()->q_lv ++;
-                q_size[myproc()->q_lv] ++; 
-            }
-            yield();
-        }
+
+
     }
 
-    acquire(&ptable.lock);
-
-    struct proc *p;
-    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-        if (p->state == RUNNABLE) {
-            p->cpu_wait ++;
-            if (p->cpu_wait == WAIT_THRESHOLD) {
-                if (p->q_lv > 0) {
-                    q_size[p->q_lv] --;
-                    p->q_lv --;
-                    q_size[p->q_lv] ++;
-                }
-                p->cpu_burst = 0;
-                p->cpu_wait = 0;
-                p->io_wait_time = 0;
-            }
-        }
-        else if (p->state == SLEEPING) p->io_wait_time ++;
-    }
-    release(&ptable.lock);
 
     lapiceoi();
     break;
@@ -150,9 +129,29 @@ trap(struct trapframe *tf)
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
   if(myproc() && myproc()->state == RUNNING &&
-     tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+     tf->trapno == T_IRQ0+IRQ_TIMER){
+    //yield();
 
+        if (myproc()->cpu_burst >= time_slice[myproc()->q_lv]) {
+#ifdef DEBUG
+            cprintf("PID: %d, cpu_burst : %d, q_lv : %d, ", myproc()->pid, myproc()->cpu_burst, myproc()->q_lv);
+#endif
+            /* move into yield();
+            myproc()->cpu_burst = 0;
+            myproc()->cpu_wait = 0;
+            myproc()->io_wait_time = 0;
+            if (myproc()->q_lv < 3) {
+                q_size[myproc()->q_lv] --;
+                myproc()->q_lv ++;
+                q_size[myproc()->q_lv] ++; 
+            }
+            */
+#ifdef DEBUG2
+            cprintf("moved to q[%d]. yield from trap\n", myproc()->q_lv);
+#endif
+            yield();
+        }
+  }
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
     exit();
