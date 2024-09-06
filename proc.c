@@ -396,19 +396,6 @@ scheduler(void)
         p->io_wait_time= 0;
         c->proc = 0;
 
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-            if (p->state != RUNNABLE) continue;
-            if (p->cpu_wait < WAIT_THRESHOLD)
-                continue;
-            if (p->q_lv > 0) {
-                q_size[p->q_lv] --;
-                p->q_lv --; 
-                q_size[p->q_lv] ++;
-            }
-            p->cpu_wait = 0;
-            p->cpu_burst = 0;
-            p->io_wait_time= 0;
-        }
         p=0;
         release(&ptable.lock);
 

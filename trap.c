@@ -83,8 +83,20 @@ trap(struct trapframe *tf)
 
     struct proc *p;
     for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-        if (p->state == RUNNABLE) p->cpu_wait ++;
-        if (p->state == SLEEPING) p->io_wait_time ++;
+        if (p->state == RUNNABLE) {
+            p->cpu_wait ++;
+            if (p->cpu_wait == WAIT_THRESHOLD) {
+                if (p->q_lv > 0) {
+                    q_size[p->q_lv] --;
+                    p->q_lv --;
+                    q_size[p->q_lv] ++;
+                }
+                p->cpu_burst = 0;
+                p->cpu_wait = 0;
+                p->io_wait_time = 0;
+            }
+        }
+        else if (p->state == SLEEPING) p->io_wait_time ++;
     }
     release(&ptable.lock);
 
