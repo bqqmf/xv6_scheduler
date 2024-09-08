@@ -75,10 +75,12 @@ struct proc* find_proc(struct queue* q) {
     for (int i = 0; i < NPROC; i ++) {
         if (q->proc[i] == 0) continue;
         
+#ifdef debug
         cprintf("In q[%d], q[%d][%d] pid : %d's state : %d, io_wait_time : %d\n",
                 q->proc[i]->q_lv, q->proc[i]->q_lv, i,
                 q->proc[i]->pid, q->proc[i]->state, q->proc[i]->io_wait_time
                );
+#endif
         
         if (q->proc[i]->state != RUNNABLE) continue;
         if (q->proc[i]->io_wait_time >= max_io) {
@@ -87,8 +89,10 @@ struct proc* find_proc(struct queue* q) {
         } 
     }
 
+#ifdef debug
     if (p) cprintf("find pid : %d\n", p->pid);
     else cprintf("cannot find proc\n");
+#endif
 
     return p;
 }
@@ -115,13 +119,17 @@ void delete_from_queue(struct queue* q, struct proc* p) {
     for (int i = 0; i < NPROC; i++) {
         if (q->proc[i] == 0) continue;
         if (q->proc[i]->pid == p->pid) {
+#ifdef debug
             cprintf("delete proc %d from q[%d]  q_size[ %d %d %d %d ] -> ", 
                     p->pid, q_idx,
                     mlfq.q_size[0], mlfq.q_size[1], mlfq.q_size[2], mlfq.q_size[3]);
+#endif
             q->proc[i] = 0;
             -- mlfq.q_size[q_idx];
+#ifdef debug
             cprintf("q_size[ %d %d %d %d ]\n", 
                     mlfq.q_size[0], mlfq.q_size[1], mlfq.q_size[2], mlfq.q_size[3]);
+#endif
 
             for (int j = i; j < NPROC; j++) {
                 q->proc[j] = q->proc[j+1];
@@ -134,10 +142,12 @@ void delete_from_queue(struct queue* q, struct proc* p) {
 void add_to_queue(struct queue* q, struct proc* p) {
     int idx = mlfq.q_size[p->q_lv];
     q->proc[idx] = p;
+#ifdef debug
     cprintf("add    proc %d to   q[%d]  ", p->pid, p->q_lv);
     // assume that q_size is already inc
     cprintf("q_size[ %d %d %d %d ]\n", 
                 mlfq.q_size[0], mlfq.q_size[1], mlfq.q_size[2], mlfq.q_size[3]);
+#endif
 }
 
 
@@ -201,10 +211,14 @@ int set_proc_info(int lv, int burst, int wait, int io_wait, int end_time)
 {
     acquire(&mlfq.lock);
     if (lv > 0) {
+#ifdef debug
         cprintf("in set_proc()-delete : ");
+#endif
         delete_from_queue(&mlfq.queues[myproc()->q_lv], myproc());
         myproc()->q_lv = lv;
+#ifdef debug
         cprintf("in set_proc()-add    : ");
+#endif
         mlfq.q_size[lv] ++;
         add_to_queue(&mlfq.queues[lv], myproc());
     }
@@ -485,7 +499,9 @@ exit(void)
     }
 
     // Jump into the scheduler, never to return.
+#ifdef debug
     cprintf("exit pid : %d\nin exit(): ", curproc->pid);
+#endif
     delete_from_queue(&mlfq.queues[curproc->q_lv], curproc);
     curproc->state = ZOMBIE;
     sched();
@@ -553,11 +569,6 @@ scheduler(void)
     struct cpu *c = mycpu();
     c->proc = 0;
     p=0;
-
-    /*
-    int max_io;
-    int q_idx = 0;
-    */
 
     for(;;){
         sti();
