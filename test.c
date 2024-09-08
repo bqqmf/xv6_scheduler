@@ -3,11 +3,12 @@
 #include "stat.h"
 
 #define PNUM 3
-int q_lv[PNUM] = { 0, 1, 0 };
+int q_lv[PNUM] = { 3, 3, 3 };
 int cpu_burst[PNUM] = { 0, 0, 0 };
 int cpu_wait[PNUM] = { 0, 0, 0 };
-int io_wait_time[PNUM] = { 0, 0, 0 };
-int end_time[PNUM] = { 400, 700, 1200 };
+int io_wait_time[PNUM] = { 5, 0, 10 };
+int end_time[PNUM] = { 500, 500, 500 };
+
 void scheduler_func(void)
 {
     int pid;
@@ -26,8 +27,8 @@ void scheduler_func(void)
         wait();
     printf(1, "end of scheduelr_test\n");
 }
-int
-main(void)
+
+int main(void)
 {
     scheduler_func();
     exit();

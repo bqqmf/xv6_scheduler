@@ -66,12 +66,12 @@ struct queue* get_highest_queue2() {
     }
     return 0;
 }
+
 // find proc which has max_io_wait_time
 struct proc* find_proc(struct queue* q) {
     struct proc* p = 0;
     int max_io = -1;
 
-    //cprintf("q_size[ %d %d %d %d ]\n", q_size[0], q_size[1], q_size[2], q_size[3]);
     for (int i = 0; i < NPROC; i ++) {
         if (q->proc[i] == 0) continue;
         
@@ -83,8 +83,10 @@ struct proc* find_proc(struct queue* q) {
 #endif
         
         if (q->proc[i]->state != RUNNABLE) continue;
+        cprintf("Pid: %d's io_wait: %d\n", q->proc[i]->pid, q->proc[i]->io_wait_time);
         if (q->proc[i]->io_wait_time >= max_io) {
             p = q->proc[i];
+            cprintf("Pid: %d's io_wait %d >= max_io %d\n", p->pid, p->io_wait_time, max_io);
             max_io = p->io_wait_time;
         } 
     }
@@ -93,6 +95,7 @@ struct proc* find_proc(struct queue* q) {
     if (p) cprintf("find pid : %d\n", p->pid);
     else cprintf("cannot find proc\n");
 #endif
+    cprintf("find pid: %d, io_wait: %d\n",p->pid, p->io_wait_time);
 
     return p;
 }
@@ -184,11 +187,11 @@ void to_lower_queue(struct proc* p) {
         add_to_queue(&mlfq.queues[lv+1], p);
 
         p->time_slice = time_slice[p->q_lv];
+        p->io_wait_time = 0;
     }
 
     p->cpu_burst = 0;
     p->cpu_wait = 0;
-    p->io_wait_time = 0;
 
     release(&mlfq.lock);
 }
@@ -217,7 +220,9 @@ int set_proc_info(int lv, int burst, int wait, int io_wait, int end_time)
     myproc()->end_time = end_time;
     myproc()->time_slice = time_slice[lv];
 
-    cprintf("set proc %d info complete\n", myproc()->pid);
+    //cprintf("Set process %d's info complete\n", myproc()->pid);
+    cprintf("Set process %d's info complete. io_wait: %d\n", 
+            myproc()->pid, myproc()->io_wait_time);
 
     return 0;
 }
@@ -499,6 +504,14 @@ exit(void)
     cprintf("exit pid : %d\nin exit(): ", curproc->pid);
 #endif
     delete_from_queue(&mlfq.queues[curproc->q_lv], curproc);
+    curproc->q_lv = 0;
+    curproc->cpu_burst = 0;
+    curproc->io_wait_time = 0;
+    curproc->cpu_wait = 0;
+    curproc->cpu_used = 0;
+    curproc->end_time = -1;
+
+
     curproc->state = ZOMBIE;
     sched();
     panic("zombie exit");
@@ -598,7 +611,6 @@ scheduler(void)
         }
 #endif
         p->cpu_wait = 0;
-        p->io_wait_time = 0;
 
         swtch(&(c->scheduler), p->context);
         switchkvm();
@@ -669,7 +681,6 @@ yield(void)
 
     myproc()->cpu_burst = 0;
     myproc()->cpu_wait = 0;
-    myproc()->io_wait_time = 0;
 
     to_lower_queue(myproc());
     /*
