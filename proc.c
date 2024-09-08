@@ -150,19 +150,6 @@ void add_to_queue(struct queue* q, struct proc* p) {
 #endif
 }
 
-
-// move proc from to.
-/*
-void move_proc(struct queue* from, struct queue* to, struct proc* p) {
-    delete_from_queue(from, p);
-    add_to_queue(to, p);
-
-    p->cpu_burst = 0;
-    p->cpu_wait = 0;
-    p->io_wait_time = 0;
-}
-*/
-
 // move to q_lv - 1
 void to_higher_queue(struct proc* p) {
     acquire(&mlfq.lock);
@@ -233,6 +220,15 @@ int set_proc_info(int lv, int burst, int wait, int io_wait, int end_time)
     cprintf("set proc %d info complete\n", myproc()->pid);
 
     return 0;
+}
+
+void increase_waits() {
+    struct proc *p;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->pid <= 2) continue;
+        if (p->state == RUNNABLE) p->cpu_wait ++;
+        if (p->state == SLEEPING) p->io_wait_time ++;
+    }
 }
 
 static void wakeup1(void *chan);
@@ -565,7 +561,6 @@ void
 scheduler(void)
 {
     struct proc *p;
-    //struct proc *cur;
     struct cpu *c = mycpu();
     c->proc = 0;
     p=0;
@@ -573,36 +568,14 @@ scheduler(void)
     for(;;){
         sti();
         acquire(&ptable.lock);
-
         acquire(&mlfq.lock);
         p = select_proc();
         release(&mlfq.lock);
-
-        /*
-        for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
-            if (q_size[q_idx] > 0) {
-                max_io = -1;
-                //cprintf("2) q_idx : %d\n", i);
-                for(cur = ptable.proc; cur < &ptable.proc[NPROC]; cur++) {
-                    if (cur->state != RUNNABLE) continue;
-                    if (cur->q_lv != q_idx) continue;
-                    //cprintf("PID : %d, q_lv : %d, io_wait_time : %d\n", cur->pid, cur->q_lv, cur->io_wait_time);
-                    if (cur->io_wait_time > max_io){
-                        //cprintf("pid : %d has max_io %d -> %d\n", cur->pid, max_io, cur->io_wait_time);
-                        p = cur;
-                        max_io = cur->io_wait_time;
-                    }
-                }
-            }
-        }
-        */
 
         if(p == 0) {
             release(&ptable.lock);
             continue;
         }
-        //cur=0;
-        //cprintf("selected pid : %d\n", p->pid);;
 
         c->proc = p;
         switchuvm(p);
@@ -629,12 +602,10 @@ scheduler(void)
 
         swtch(&(c->scheduler), p->context);
         switchkvm();
-
-        //cprintf("%d's state : %d\n", p->pid, p->state);
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
         c->proc = 0;
         p=0;
+
+        increase_waits();
 
         release(&ptable.lock);
 
