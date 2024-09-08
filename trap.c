@@ -39,7 +39,9 @@ idtinit(void)
 }
 
 //PAGEBREAK: 41
-int total_cpu_used = 0;
+int total_cpu_used = 0; // sum of all proc's cpu_used
+
+// ojh
 void
 trap(struct trapframe *tf)
 {
@@ -58,28 +60,23 @@ trap(struct trapframe *tf)
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+
+      // ojh
+      if (myproc() && myproc()->pid > 2) {
+          myproc()->cpu_burst ++;
+          myproc()->cpu_used++;
+          total_cpu_used ++;
+
+          if (myproc()->cpu_used == myproc()->end_time) {
+              cprintf("PID : %d uses %d ticks terminated\n", myproc()->pid, myproc()->cpu_used);  
+              kill(myproc()->pid);
+              //exit();
+          }
+      }
+
       wakeup(&ticks);
       release(&tickslock);
-
-
-    if (myproc() && myproc()->pid > 2) {
-       myproc()->cpu_burst ++;
-       myproc()->cpu_used ++;
-       total_cpu_used ++;
-       if (myproc()->cpu_used == myproc()->end_time) {
-           cprintf("PID : %d uses %d ticks terminated\n", myproc()->pid, myproc()->cpu_used);  
-           kill(myproc()->pid);
-       }
-          // if p->cpu_burst == end_time
-          // print pid %d terminated
-          // kill(myproc()->pid);
     }
-
-
-
-    }
-
-
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
@@ -128,29 +125,19 @@ trap(struct trapframe *tf)
 
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
+  // ojh
   if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER){
-    //yield();
+      if (myproc()->cpu_burst == myproc()->time_slice) {
+          acquire(&tickslock);
 
-        if (myproc()->cpu_burst >= time_slice[myproc()->q_lv]) {
-#ifdef DEBUG
-            cprintf("PID: %d, cpu_burst : %d, q_lv : %d, ", myproc()->pid, myproc()->cpu_burst, myproc()->q_lv);
-#endif
-            /* move into yield();
-            myproc()->cpu_burst = 0;
-            myproc()->cpu_wait = 0;
-            myproc()->io_wait_time = 0;
-            if (myproc()->q_lv < 3) {
-                q_size[myproc()->q_lv] --;
-                myproc()->q_lv ++;
-                q_size[myproc()->q_lv] ++; 
-            }
-            */
-#ifdef DEBUG2
-            cprintf("moved to q[%d]. yield from trap\n", myproc()->q_lv);
-#endif
-            yield();
-        }
+          cprintf("PID: %d, cpu_burst : %d, q_lv : %d, ",
+                  myproc()->pid, myproc()->cpu_burst, myproc()->q_lv);
+          cprintf("in q[%d]. yield from trap\n", myproc()->q_lv);
+
+          release(&tickslock);
+          yield();
+      }
   }
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)

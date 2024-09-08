@@ -12,32 +12,218 @@ struct {
     struct proc proc[NPROC];
 } ptable;
 
+struct queue {
+    struct proc* proc[NPROC];
+};
+
+struct {
+    struct queue queues[NPROC];
+    int q_size[NPROC];
+    struct spinlock lock;
+} mlfq;
+
+
 static struct proc *initproc;
 
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
-int q_size[NQUEUE] = { 0, 0, 0, 0 };
 int time_slice[NQUEUE] = { 10, 20, 40, 80 };
 int WAIT_THRESHOLD = 250;
 
-static void wakeup1(void *chan);
+void mlfqinit(void)
+{
+    initlock(&mlfq.lock, "mlfq");
+}
+
+struct queue* get_highest_queue() {
+    for (int i = 0; i < NQUEUE; i ++) {
+        if (mlfq.q_size[i] == 0) continue;
+        //if (mlfq.q_size[i] == 1 && mlfq.queues[i].proc[1]->state == SLEEPING) continue;
+        struct queue *q = &mlfq.queues[i];
+        for (int j = 0; j < NPROC; j++) {
+            /*
+            cprintf("highest q_lv : %d\n", i);
+            for (int j=0; j<NPROC; j++) {
+                if (mlfq[i]->proc[j])
+                    cprintf("pid : %d's state : %d\n",
+                        mlfq[i]->proc[j]->pid, mlfq[i]->proc[j]->state);
+            }
+            */
+            if (q->proc[j] && q->proc[j]->state == RUNNABLE) 
+                return q;
+        }
+            
+    }
+    //cprintf("cannot find Q\n");
+    return 0;
+}
+
+struct queue* get_highest_queue2() {
+    for (int i = 0; i < NQUEUE; i ++) {
+        if (mlfq.q_size[i] > 0) 
+            return &mlfq.queues[i];
+    }
+    return 0;
+}
+// find proc which has max_io_wait_time
+struct proc* find_proc(struct queue* q) {
+    struct proc* p = 0;
+    int max_io = -1;
+
+    //cprintf("q_size[ %d %d %d %d ]\n", q_size[0], q_size[1], q_size[2], q_size[3]);
+    for (int i = 0; i < NPROC; i ++) {
+        if (q->proc[i] == 0) continue;
+        
+        cprintf("In q[%d], q[%d][%d] pid : %d's state : %d, io_wait_time : %d\n",
+                q->proc[i]->q_lv, q->proc[i]->q_lv, i,
+                q->proc[i]->pid, q->proc[i]->state, q->proc[i]->io_wait_time
+               );
+        
+        if (q->proc[i]->state != RUNNABLE) continue;
+        if (q->proc[i]->io_wait_time >= max_io) {
+            p = q->proc[i];
+            max_io = p->io_wait_time;
+        } 
+    }
+
+    if (p) cprintf("find pid : %d\n", p->pid);
+    else cprintf("cannot find proc\n");
+
+    return p;
+}
+
+// select proc to execute next
+struct proc* select_proc() {
+    struct queue* q;
+    struct proc* p;
+
+    if ((q = get_highest_queue()) == 0) 
+        return 0;
+
+    if ((p = find_proc(q)) == 0) {
+        return 0;
+    }
+    //cprintf("select proc %d success\n", p->pid);
+
+    return p;
+}
+
+void delete_from_queue(struct queue* q, struct proc* p) {
+    int q_idx = p->q_lv;
+
+    for (int i = 0; i < NPROC; i++) {
+        if (q->proc[i] == 0) continue;
+        if (q->proc[i]->pid == p->pid) {
+            cprintf("delete proc %d from q[%d]  q_size[ %d %d %d %d ] -> ", 
+                    p->pid, q_idx,
+                    mlfq.q_size[0], mlfq.q_size[1], mlfq.q_size[2], mlfq.q_size[3]);
+            q->proc[i] = 0;
+            -- mlfq.q_size[q_idx];
+            cprintf("q_size[ %d %d %d %d ]\n", 
+                    mlfq.q_size[0], mlfq.q_size[1], mlfq.q_size[2], mlfq.q_size[3]);
+
+            for (int j = i; j < NPROC; j++) {
+                q->proc[j] = q->proc[j+1];
+            }
+            q->proc[NPROC-1] = 0;
+        }
+    }
+}
+
+void add_to_queue(struct queue* q, struct proc* p) {
+    int idx = mlfq.q_size[p->q_lv];
+    q->proc[idx] = p;
+    cprintf("add    proc %d to   q[%d]  ", p->pid, p->q_lv);
+    // assume that q_size is already inc
+    cprintf("q_size[ %d %d %d %d ]\n", 
+                mlfq.q_size[0], mlfq.q_size[1], mlfq.q_size[2], mlfq.q_size[3]);
+}
+
+
+// move proc from to.
+/*
+void move_proc(struct queue* from, struct queue* to, struct proc* p) {
+    delete_from_queue(from, p);
+    add_to_queue(to, p);
+
+    p->cpu_burst = 0;
+    p->cpu_wait = 0;
+    p->io_wait_time = 0;
+}
+*/
+
+// move to q_lv - 1
+void to_higher_queue(struct proc* p) {
+    acquire(&mlfq.lock);
+    int lv = p->q_lv;
+
+    if (lv > 0) {
+        // move_proc(&mlfq.queues[lv], &mlfq.queues[lv - 1], p);
+        delete_from_queue(&mlfq.queues[lv], p);
+        mlfq.q_size[lv-1] ++;
+        p->q_lv --; 
+        add_to_queue(&mlfq.queues[lv-1], p);
+
+        p->time_slice = time_slice[p->q_lv];
+    }
+    p->cpu_burst = 0;
+    p->cpu_wait = 0;
+    p->io_wait_time = 0;
+    
+    release(&mlfq.lock);
+}
+
+// move to q_lv + 1
+void to_lower_queue(struct proc* p) {
+    acquire(&mlfq.lock);
+    int lv = p->q_lv;
+
+    if (lv < 3) {
+        // move_proc(&mlfq.queues[lv], &mlfq.queues[lv + 1], p);
+        delete_from_queue(&mlfq.queues[lv], p);
+        mlfq.q_size[lv+1] ++;
+        p->q_lv ++;
+        add_to_queue(&mlfq.queues[lv+1], p);
+
+        p->time_slice = time_slice[p->q_lv];
+    }
+
+    p->cpu_burst = 0;
+    p->cpu_wait = 0;
+    p->io_wait_time = 0;
+
+    release(&mlfq.lock);
+}
+
+// ojh
 int set_proc_info(int lv, int burst, int wait, int io_wait, int end_time)
 {
-    q_size[myproc()->q_lv] --;
-    myproc()->q_lv = lv;
-    q_size[myproc()->q_lv] ++; 
+    acquire(&mlfq.lock);
+    if (lv > 0) {
+        cprintf("in set_proc()-delete : ");
+        delete_from_queue(&mlfq.queues[myproc()->q_lv], myproc());
+        myproc()->q_lv = lv;
+        cprintf("in set_proc()-add    : ");
+        mlfq.q_size[lv] ++;
+        add_to_queue(&mlfq.queues[lv], myproc());
+    }
+    release(&mlfq.lock);
+
     myproc()->cpu_burst = burst;
     myproc()->cpu_wait = wait;
     myproc()->io_wait_time = io_wait;
     myproc()->end_time = end_time;
+    myproc()->time_slice = time_slice[lv];
 
     cprintf("set proc %d info complete\n", myproc()->pid);
 
     return 0;
 }
 
-    void
+static void wakeup1(void *chan);
+
+void
 pinit(void)
 {
     initlock(&ptable.lock, "ptable");
@@ -51,7 +237,7 @@ cpuid() {
 
 // Must be called with interrupts disabled to avoid the caller being
 // rescheduled between reading lapicid and running through the loop.
-    struct cpu*
+struct cpu*
 mycpu(void)
 {
     int apicid, i;
@@ -87,7 +273,7 @@ myproc(void) {
 // If found, change state to EMBRYO and initialize
 // state required to run in the kernel.
 // Otherwise return 0.
-    static struct proc*
+static struct proc*
 allocproc(void)
 {
     struct proc *p;
@@ -105,19 +291,26 @@ allocproc(void)
 found:
     p->state = EMBRYO;
     p->pid = nextpid++;
+
+    acquire(&mlfq.lock);
     if (p->pid <= 2) {
-        p->q_lv = 3;
         p->cpu_wait = 500;
-        q_size[3]++;
+        p->q_lv = 3;
+        p->time_slice = time_slice[3];
+        mlfq.q_size[3] ++;
+        add_to_queue(&mlfq.queues[3], p);
     } else {
-    cprintf("PID : %d created\n", p->pid);
-        p->q_lv = 0;
+    cprintf("PID : %d created!!!\n", p->pid);
         p->cpu_wait = 0;
-        q_size[0]++;
+        p->q_lv = 0;
+        p->time_slice = time_slice[0];
+        mlfq.q_size[0] ++;
+        add_to_queue(&mlfq.queues[0], p);
     }
     p->cpu_burst = 0;
     p->io_wait_time = 0;
     p->end_time = -1;
+    release(&mlfq.lock);
     release(&ptable.lock);
 
     // Allocate kernel stack.
@@ -146,7 +339,7 @@ found:
 
 //PAGEBREAK: 32
 // Set up first user process.
-    void
+void
 userinit(void)
 {
     struct proc *p;
@@ -184,7 +377,7 @@ userinit(void)
 
 // Grow current process's memory by n bytes.
 // Return 0 on success, -1 on failure.
-    int
+int
 growproc(int n)
 {
     uint sz;
@@ -206,7 +399,7 @@ growproc(int n)
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
-    int
+int
 fork(void)
 {
     int i, pid;
@@ -254,7 +447,7 @@ fork(void)
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
-    void
+void
 exit(void)
 {
     struct proc *curproc = myproc();
@@ -292,15 +485,16 @@ exit(void)
     }
 
     // Jump into the scheduler, never to return.
+    cprintf("exit pid : %d\nin exit(): ", curproc->pid);
+    delete_from_queue(&mlfq.queues[curproc->q_lv], curproc);
     curproc->state = ZOMBIE;
-    q_size[curproc->q_lv] --;
     sched();
     panic("zombie exit");
 }
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
-    int
+int
 wait(void)
 {
     struct proc *p;
@@ -350,22 +544,30 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+// ojh
 void
 scheduler(void)
 {
-    struct proc *p, *cur;
+    struct proc *p;
+    //struct proc *cur;
     struct cpu *c = mycpu();
     c->proc = 0;
     p=0;
 
-
+    /*
     int max_io;
     int q_idx = 0;
+    */
 
     for(;;){
         sti();
         acquire(&ptable.lock);
 
+        acquire(&mlfq.lock);
+        p = select_proc();
+        release(&mlfq.lock);
+
+        /*
         for (q_idx = 0; q_idx < NQUEUE; q_idx++) {
             if (q_size[q_idx] > 0) {
                 max_io = -1;
@@ -373,9 +575,6 @@ scheduler(void)
                 for(cur = ptable.proc; cur < &ptable.proc[NPROC]; cur++) {
                     if (cur->state != RUNNABLE) continue;
                     if (cur->q_lv != q_idx) continue;
-#ifdef DEBUG2
-                    cprintf("cur : %d, io_wait : %d, q_size[%d  %d  %d  %d]\n", cur->pid, cur->io_wait_time, q_size[0], q_size[1], q_size[2], q_size[3]);
-#endif
                     //cprintf("PID : %d, q_lv : %d, io_wait_time : %d\n", cur->pid, cur->q_lv, cur->io_wait_time);
                     if (cur->io_wait_time > max_io){
                         //cprintf("pid : %d has max_io %d -> %d\n", cur->pid, max_io, cur->io_wait_time);
@@ -385,35 +584,20 @@ scheduler(void)
                 }
             }
         }
+        */
 
         if(p == 0) {
             release(&ptable.lock);
             continue;
         }
-
-        for (cur = ptable.proc; cur < &ptable.proc[NPROC]; cur++) {
-            if (cur->state == RUNNABLE) {
-                cur->cpu_wait ++;
-                if (cur->cpu_wait == WAIT_THRESHOLD) {
-                    cprintf("PID : %d AGING\n", cur->pid);
-                    if (cur->q_lv > 0) {
-                        q_size[cur->q_lv] --;
-                        cur->q_lv --;
-                        q_size[cur->q_lv] ++;
-                    }
-                    cur->cpu_burst = 0;
-                    cur->cpu_wait = 0;
-                    cur->io_wait_time= 0;
-                }
-            } else if (cur->state == SLEEPING) cur->io_wait_time ++;
-        }
-        cur=0;
+        //cur=0;
+        //cprintf("selected pid : %d\n", p->pid);;
 
         c->proc = p;
         switchuvm(p);
         p->state = RUNNING;
 #ifdef DEBUG
-        if (p->pid > 3) {
+        if (p->pid > 2) {
             char *s[6] = { 
                 [UNUSED] = "UNUSED",
                 [EMBRYO] = "EMBRYO",
@@ -425,11 +609,12 @@ scheduler(void)
 
             cprintf("\npid : %d, state : %s, cpu_burst : %d, io_wait_time= %d, cpu_wait = %d, q_lv = %d  ", 
                     p->pid, s[p->state], p->cpu_burst, p->io_wait_time, p->cpu_wait, p->q_lv);
-            cprintf("qsize : %d  %d  %d  %d\n", q_size[0], q_size[1], q_size[2], q_size[3]);
+            cprintf("qsize : %d  %d  %d  %d\n", 
+                    mlfq.q_size[0], mlfq.q_size[1], mlfq.q_size[2], mlfq.q_size[3]);
         }
 #endif
         p->cpu_wait = 0;
-        p->io_wait_time= 0;
+        p->io_wait_time = 0;
 
         swtch(&(c->scheduler), p->context);
         switchkvm();
@@ -445,6 +630,28 @@ scheduler(void)
     }
 }
 
+/*
+void scheduler() {
+    struct proc *p;
+    struct cpu *c = mycpu();
+    c->proc=0;
+    for(;;) {
+        sti();
+        acquire(&ptable.lock);
+        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+            if (p->state != RUNNABLE) continue;
+            c->proc = p;
+            switchuvm(p);
+            p->state = RUNNING;
+            swtch(&(c->scheduler), p->context);
+            switchkvm();
+            c->proc = 0;
+        }
+        release(&ptable.lock);
+    }
+}
+*/
+
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
@@ -452,7 +659,7 @@ scheduler(void)
 // be proc->intena and proc->ncli, but that would
 // break in the few places where a lock is held but
 // there's no process.
-    void
+void
 sched(void)
 {
     int intena;
@@ -472,7 +679,7 @@ sched(void)
 }
 
 // Give up the CPU for one scheduling round.
-    void
+void
 yield(void)
 {
     acquire(&ptable.lock);  //DOC: yieldlock
@@ -481,11 +688,15 @@ yield(void)
     myproc()->cpu_burst = 0;
     myproc()->cpu_wait = 0;
     myproc()->io_wait_time = 0;
+
+    to_lower_queue(myproc());
+    /*
     if (myproc()->q_lv < 3) {
         q_size[myproc()->q_lv] --;
         myproc()->q_lv ++;
         q_size[myproc()->q_lv] ++; 
     }
+    */
 
 
     sched();

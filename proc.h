@@ -34,7 +34,9 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// ojh
 #define NQUEUE 4
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -57,6 +59,7 @@ struct proc {
   int io_wait_time;
   int cpu_used;
   int end_time;
+  int time_slice;
 };
 
 // Process memory is laid out contiguously, low addresses first:
