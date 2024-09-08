@@ -125,6 +125,7 @@ int             set_proc_info(int, int, int, int, int);
 // ojh
 void            mlfqinit(void);
 void            increase_waits(void);
+void            check_aging(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

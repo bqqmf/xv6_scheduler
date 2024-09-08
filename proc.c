@@ -83,11 +83,15 @@ struct proc* find_proc(struct queue* q) {
 #endif
         
         if (q->proc[i]->state != RUNNABLE) continue;
+#ifdef debug
         cprintf("Pid: %d's io_wait: %d, cpu_wait: %d\n",
                 q->proc[i]->pid, q->proc[i]->io_wait_time, q->proc[i]->cpu_wait);
+#endif
         if (q->proc[i]->io_wait_time >= max_io) {
             p = q->proc[i];
+#ifdef debug
             cprintf("Pid: %d's io_wait %d >= max_io %d\n", p->pid, p->io_wait_time, max_io);
+#endif
             max_io = p->io_wait_time;
         } 
     }
@@ -96,7 +100,9 @@ struct proc* find_proc(struct queue* q) {
     if (p) cprintf("find pid : %d\n", p->pid);
     else cprintf("cannot find proc\n");
 #endif
+#ifdef debug
     cprintf("find pid: %d, io_wait: %d\n",p->pid, p->io_wait_time);
+#endif
 
     return p;
 }
@@ -167,6 +173,8 @@ void to_higher_queue(struct proc* p) {
         add_to_queue(&mlfq.queues[lv-1], p);
 
         p->time_slice = time_slice[p->q_lv];
+        // aging while another proc is running
+        cprintf("Pid: %d Aging\n", p->pid);
     }
     p->cpu_burst = 0;
     p->cpu_wait = 0;
@@ -235,6 +243,17 @@ void increase_waits() {
         if (p->state == RUNNABLE) p->cpu_wait ++;
         if (p->state == SLEEPING) p->io_wait_time ++;
     }
+}
+
+void check_aging() {
+    struct proc *p;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+        if (p->pid <= 2 || p->state != RUNNABLE) continue;
+        if (p->cpu_wait >= WAIT_THRESHOLD) {
+            to_higher_queue(p);
+        }
+    }
+
 }
 
 static void wakeup1(void *chan);

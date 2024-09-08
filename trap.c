@@ -84,6 +84,7 @@ trap(struct trapframe *tf)
     // ojh
     acquire(&ptable.lock);
     increase_waits();
+    check_aging();
     release(&ptable.lock);
 
     lapiceoi();
