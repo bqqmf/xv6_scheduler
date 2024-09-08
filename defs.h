@@ -124,6 +124,7 @@ int             set_proc_info(int, int, int, int, int);
 
 // ojh
 void            mlfqinit(void);
+void            increase_waits(void);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

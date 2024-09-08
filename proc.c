@@ -83,7 +83,8 @@ struct proc* find_proc(struct queue* q) {
 #endif
         
         if (q->proc[i]->state != RUNNABLE) continue;
-        cprintf("Pid: %d's io_wait: %d\n", q->proc[i]->pid, q->proc[i]->io_wait_time);
+        cprintf("Pid: %d's io_wait: %d, cpu_wait: %d\n",
+                q->proc[i]->pid, q->proc[i]->io_wait_time, q->proc[i]->cpu_wait);
         if (q->proc[i]->io_wait_time >= max_io) {
             p = q->proc[i];
             cprintf("Pid: %d's io_wait %d >= max_io %d\n", p->pid, p->io_wait_time, max_io);
@@ -617,34 +618,11 @@ scheduler(void)
         c->proc = 0;
         p=0;
 
-        increase_waits();
-
         release(&ptable.lock);
 
     }
 }
 
-/*
-void scheduler() {
-    struct proc *p;
-    struct cpu *c = mycpu();
-    c->proc=0;
-    for(;;) {
-        sti();
-        acquire(&ptable.lock);
-        for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
-            if (p->state != RUNNABLE) continue;
-            c->proc = p;
-            switchuvm(p);
-            p->state = RUNNING;
-            swtch(&(c->scheduler), p->context);
-            switchkvm();
-            c->proc = 0;
-        }
-        release(&ptable.lock);
-    }
-}
-*/
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores

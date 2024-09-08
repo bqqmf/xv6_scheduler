@@ -80,6 +80,12 @@ trap(struct trapframe *tf)
       wakeup(&ticks);
       release(&tickslock);
     }
+
+    // ojh
+    acquire(&ptable.lock);
+    increase_waits();
+    release(&ptable.lock);
+
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
