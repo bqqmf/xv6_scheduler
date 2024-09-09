@@ -67,13 +67,12 @@ trap(struct trapframe *tf)
           myproc()->cpu_used++;
           total_cpu_used ++;
 
-          if (myproc()->cpu_used == myproc()->end_time) {
-              cprintf("PID: %d, cpu_burst: %d, cpu_wait: %d, q_lv: %d, total(%d/%d)\n",
-                    myproc()->pid, myproc()->cpu_burst, myproc()->cpu_wait, 
+          if (myproc()->pid > 3 && myproc()->cpu_used == myproc()->end_time) {
+              cprintf("PID: %d uses %d ticks in mlfq[%d], total(%d/%d)\n",
+                    myproc()->pid, myproc()->cpu_burst,
                     myproc()->q_lv, myproc()->cpu_used, myproc()->end_time);
               cprintf("PID: %d, used %d ticks. terminated\n", myproc()->pid, myproc()->cpu_used);  
               kill(myproc()->pid);
-              //exit();
           }
       }
 
@@ -141,8 +140,8 @@ trap(struct trapframe *tf)
       if (myproc()->cpu_burst == myproc()->time_slice) {
           acquire(&tickslock);
 
-          cprintf("PID: %d, cpu_burst: %d, cpu_wait: %d, q_lv: %d, total(%d/%d)\n",
-                  myproc()->pid, myproc()->cpu_burst, myproc()->cpu_wait, 
+          cprintf("PID: %d uses %d ticks in mlfq[%d], total(%d/%d)\n",
+                  myproc()->pid, myproc()->cpu_burst,
                   myproc()->q_lv, myproc()->cpu_used, myproc()->end_time);
 
           release(&tickslock);
