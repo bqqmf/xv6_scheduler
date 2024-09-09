@@ -83,10 +83,13 @@ struct proc* find_proc(struct queue* q) {
 #endif
         
         if (q->proc[i]->state != RUNNABLE) continue;
-#ifdef debug
+
+// aging debug
+#ifdef debug2 
         cprintf("Pid: %d's io_wait: %d, cpu_wait: %d\n",
                 q->proc[i]->pid, q->proc[i]->io_wait_time, q->proc[i]->cpu_wait);
 #endif
+
         if (q->proc[i]->io_wait_time >= max_io) {
             p = q->proc[i];
 #ifdef debug
@@ -174,7 +177,7 @@ void to_higher_queue(struct proc* p) {
 
         p->time_slice = time_slice[p->q_lv];
         // aging while another proc is running
-        cprintf("Pid: %d Aging\n", p->pid);
+        cprintf("PID: %d Aging\n", p->pid);
     }
     p->cpu_burst = 0;
     p->cpu_wait = 0;
@@ -228,10 +231,11 @@ int set_proc_info(int lv, int burst, int wait, int io_wait, int end_time)
     myproc()->io_wait_time = io_wait;
     myproc()->end_time = end_time;
     myproc()->time_slice = time_slice[lv];
+    myproc()->cpu_used = 0;
 
     //cprintf("Set process %d's info complete\n", myproc()->pid);
-    cprintf("Set process %d's info complete. io_wait: %d\n", 
-            myproc()->pid, myproc()->io_wait_time);
+    cprintf("Set process %d's info complete\n", 
+            myproc()->pid); 
 
     return 0;
 }
@@ -335,7 +339,7 @@ found:
         mlfq.q_size[3] ++;
         add_to_queue(&mlfq.queues[3], p);
     } else {
-    cprintf("PID : %d created!!!\n", p->pid);
+    cprintf("PID: %d created\n", p->pid);
         p->cpu_wait = 0;
         p->q_lv = 0;
         p->time_slice = time_slice[0];

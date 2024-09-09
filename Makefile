@@ -80,6 +80,8 @@ CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb 
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ifeq ($(debug), 1)
 	CFLAGS += -DDEBUG
+else ifeq ($(debug), 2)
+	CFLAGS += -DDEBUG2
 endif
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
@@ -186,6 +188,10 @@ UPROGS=\
 	_zombie\
 	_mlfqtest\
 	_test\
+	_test1-a\
+	_test1-b\
+	_test2-a\
+	_test3-a\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -258,6 +264,9 @@ EXTRA=\
 	printf.c umalloc.c\
 	mlfqtest.c\
 	test.c\
+	test1-a.c test1-b.c\
+	test2-a.c\
+	test3-a.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 
