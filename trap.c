@@ -61,18 +61,20 @@ trap(struct trapframe *tf)
       acquire(&tickslock);
       ticks++;
 
+      struct proc *p = myproc();
       // ojh
-      if (myproc() && myproc()->pid > 2) {
-          myproc()->cpu_burst ++;
-          myproc()->cpu_used++;
+      if (p && p->pid > 2) {
+          p->cpu_burst ++;
+          p->cpu_used++;
           total_cpu_used ++;
 
-          if (myproc()->pid > 3 && myproc()->cpu_used == myproc()->end_time) {
+          // 이 부분을 학생들은 debug=1에 넣어야 함.
+          if (p->pid > 3 && p->cpu_used == p->end_time) {
               cprintf("PID: %d uses %d ticks in mlfq[%d], total(%d/%d)\n",
-                    myproc()->pid, myproc()->cpu_burst,
-                    myproc()->q_lv, myproc()->cpu_used, myproc()->end_time);
-              cprintf("PID: %d, used %d ticks. terminated\n", myproc()->pid, myproc()->cpu_used);  
-              kill(myproc()->pid);
+                    p->pid, p->cpu_burst,
+                    p->q_lv, p->cpu_used, p->end_time);
+              cprintf("PID: %d, used %d ticks. terminated\n", p->pid, p->cpu_used);  
+              kill(p->pid);
           }
       }
 
@@ -135,14 +137,16 @@ trap(struct trapframe *tf)
   // Force process to give up CPU on clock tick.
   // If interrupts were on while locks held, would need to check nlock.
   // ojh
-  if(myproc() && myproc()->state == RUNNING &&
+  struct proc *p = myproc();
+  if(p && p->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER){
-      if (myproc()->cpu_burst == myproc()->time_slice) {
+      if (p->pid > 3 && p->cpu_burst == p->time_slice) {
           acquire(&tickslock);
 
+          // 이 부분을 학생들은 debug=1에 넣어야 함.
           cprintf("PID: %d uses %d ticks in mlfq[%d], total(%d/%d)\n",
-                  myproc()->pid, myproc()->cpu_burst,
-                  myproc()->q_lv, myproc()->cpu_used, myproc()->end_time);
+                  p->pid, p->cpu_burst,
+                  p->q_lv, p->cpu_used, p->end_time);
 
           release(&tickslock);
           yield();
