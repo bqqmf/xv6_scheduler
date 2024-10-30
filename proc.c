@@ -339,7 +339,10 @@ found:
         mlfq.q_size[3] ++;
         add_to_queue(&mlfq.queues[3], p);
     } else {
-    cprintf("PID: %d created\n", p->pid);
+#ifdef DEBUG
+        if (p->pid > 3)
+            cprintf("PID: %d created\n", p->pid);
+#endif
         p->cpu_wait = 0;
         p->q_lv = 0;
         p->time_slice = time_slice[0];
